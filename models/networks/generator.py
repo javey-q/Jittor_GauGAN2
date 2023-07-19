@@ -29,7 +29,8 @@ class SPADEGenerator(BaseNetwork):
 
         self.sw, self.sh = self.compute_latent_vector_size(opt)
 
-        if opt.use_vae:
+        self.use_vae = True
+        if self.use_vae:
             # In case of VAE, we will sample from random z vector
             self.fc = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)
         else:
@@ -76,7 +77,7 @@ class SPADEGenerator(BaseNetwork):
     def execute(self, input, z=None):
         seg = input
 
-        if self.opt.use_vae:
+        if self.use_vae:
             # we sample z from unit normal and reshape the tensor
             if z is None:
                 z = jt.randn(input.size(0), self.opt.z_dim)
@@ -113,7 +114,6 @@ class SPADEGenerator(BaseNetwork):
 
         x = self.conv_img(nn.leaky_relu(x, 2e-1))
         x = jt.tanh(x)
-
         return x
 
 

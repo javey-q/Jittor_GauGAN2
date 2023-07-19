@@ -53,7 +53,6 @@ class SPADEResnetBlock(nn.Module):
 
         dx = self.conv_0(self.actvn(self.norm_0(x, seg)))
         dx = self.conv_1(self.actvn(self.norm_1(dx, seg)))
-
         out = x_s + dx
 
         return out
