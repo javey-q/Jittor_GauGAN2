@@ -35,7 +35,7 @@ dataloader = data.create_dataloader(opt)
 trainer = Pix2PixTrainer(opt)
 
 # create tool for counting iterations
-iter_counter = IterationCounter(opt, len(dataloader))
+iter_counter = IterationCounter(opt, len(dataloader) // dataloader.batch_size)
 
 # create tool for visualization
 visualizer = Visualizer(opt)
