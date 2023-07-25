@@ -143,11 +143,11 @@ class LGAdaIN(nn.Module):
 
 config_input_shape = (384, 512)
 num_stage = 4 # 2 **（stage + 3) = image_size
-Base_channels_for_latent = 4
-Base_channels_for_Dec = 64
+Base_channels_for_latent = 8  # 8 / 16 / 32 / 64
+Base_channels_for_Dec = 64  #
 input_type = 'PoE_prior'  # PoE_prior  Constant
 
-class Generator(nn.Module):
+class PoE_Generator(nn.Module):
     @staticmethod
     def modify_commandline_options(parser, is_train):
         parser.set_defaults(norm_G='spectralspadesyncbatch3x3')
@@ -185,18 +185,20 @@ class Generator(nn.Module):
 
         self.maximum_channel, self.first_h , self.first_w = self.compute_latent_vector_size(opt)
         print(self.maximum_channel, self.first_h , self.first_w)
+
         if self.input_type  == 'PoE_prior':
             self.input_fc = nn.Linear(latent_dim,  self.maximum_channel * self.first_h * self.first_w)
 
         pre_out_channel = self.maximum_channel
-        spatial_channel = 2 ** (self.num_stage) * self.base_channel_latent
-        decoder_network = [G_ResBlock(self.maximum_channel, spatial_channel, latent_dim, fused=False, initial=True)]
+        spatial_channels =  getattr(self.seg_encoder, 'ms_out_dims')
+        decoder_network = [G_ResBlock(pre_out_channel, spatial_channels[-1], latent_dim, fused=False, initial=True)]
         # for _, channel in zip(range(stage), reversed(getattr(self.seg_encoder, 'ms_out_dims'))):
         for i in range(num_stage):
             pre_out_channel = pre_out_channel // 2
-            spatial_channel = spatial_channel // 2
             if i == (num_stage - 1):
                 spatial_channel = 1
+            else:
+                spatial_channel = spatial_channels[-2-i]
             decoder_network.append(G_ResBlock(pre_out_channel, spatial_channel, latent_dim, fused=False, initial=False))
         self.decoder = nn.ModuleList(decoder_network)
 

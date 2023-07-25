@@ -67,7 +67,7 @@ class ConvEncoder(BaseNetwork):
 config_input_shape = (384, 512)
 config_stage = 4
 config_spatial_channel = 64
-config_base_channel = 4
+config_base_channel = 8
 
 # segmentation map is resized to match the resolution of the
 # corresponding feature map using nearest-neighbor downsampling
@@ -83,7 +83,7 @@ class SegmentationEncoder(nn.Module):
         self.ms_out_dims = []
         sh, sw = segmap_shape
         downsamples, embeds, convs = [], [], []
-        custom_channel = base_channel
+        custom_channel = base_channel // 2
         for i in range(num_stage):
             if i != (num_stage - 1):
                 sh, sw = sh//2 , sw//2
@@ -92,9 +92,9 @@ class SegmentationEncoder(nn.Module):
             fused = True if sw >= 128 else False
 
             embeds.append(ConvBlock(in_channels, custom_channel, 3, 1, downsample=False, fused=fused))
-            convs.append(ConvBlock(custom_channel, 2 * custom_channel, 3, 1, downsample=True, fused=fused))
+            convs.append(ConvBlock(custom_channel, 2*custom_channel, 3, 1, downsample=True, fused=fused))
 
-            custom_channel = 2 * custom_channel
+            custom_channel = 2*custom_channel
             self.ms_out_dims.append(custom_channel)
 
         self.downsamples = nn.ModuleList(downsamples)
@@ -111,11 +111,10 @@ class SegmentationEncoder(nn.Module):
                 x_d = self.downsamples[i](seg)
 
             elif i > 0:
-                x = conv(embed(x_d) + x)  # + ?
+                x = conv(embed(x_d) + x)
 
                 if i != (len(self.downsamples)):
                     x_d = self.downsamples[i](x_d)
-
             outputs.append(x)
 
         return outputs
@@ -130,7 +129,8 @@ class StyleResblock(nn.Module):
                  ):
         super(StyleResblock, self).__init__()
 
-        middle_channels = min(in_channels, out_channels)
+        # FIXME  middle_channels
+        middle_channels = out_channels // 2
 
         self.learned_shortcut = learned_shortcut
 
@@ -171,7 +171,7 @@ class StyleEncoder(nn.Module):
         super(StyleEncoder, self).__init__()
         modules = []
         if middle_channels is None:
-            middle_channels = [out_channels // (2 ** (num_stage - 1 - i)) for i in range(num_stage)] # 128 / 256 / 512
+            middle_channels = [out_channels // (2 ** (num_stage - i)) for i in range(1, num_stage+1)] # 64/ 128 / 256 / 512
 
         for middle_channel in middle_channels:
             modules.append(StyleResblock(in_channels,
@@ -209,16 +209,16 @@ class StyleEncoder(nn.Module):
 
 
 if __name__ == '__main__':
-    # input = jt.randn(1, 1, 384, 512)
-    # seg_encoder = SegmentationEncoder()
-    # outputs = seg_encoder(input)
+    input = jt.randn(1, 1, 384, 512)
+    seg_encoder = SegmentationEncoder()
+    outputs = seg_encoder(input)
     # print(seg_encoder.named_modules())
-    # for output in outputs:
-    #     print(output.shape)
-    input = jt.randn(1, 3, 384, 512)
-    style_encoder = StyleEncoder()
-    x, style_features = style_encoder(input)
-    print(style_encoder.named_modules())
-    mu, logvar = style_features[0], style_features[1]
-    print(mu.shape)
-    print(logvar.shape)
+    for output in outputs:
+        print(output.shape)
+    # input = jt.randn(1, 3, 384, 512)
+    # style_encoder = StyleEncoder()
+    # x, style_features = style_encoder(input)
+    # # print(style_encoder.named_modules())
+    # mu, logvar = style_features[0], style_features[1]
+    # print(mu.shape)
+    # print(logvar.shape)

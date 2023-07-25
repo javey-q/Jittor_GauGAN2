@@ -88,7 +88,6 @@ class ResnetBlock(nn.Module):
         out = x + y
         return out
 
-
 # VGG architecter, used for the perceptual loss using a pretrained VGG network
 class VGG19(nn.Module):
     def __init__(self, requires_grad=False):
@@ -121,3 +120,7 @@ class VGG19(nn.Module):
         h_relu5 = self.slice5(h_relu4)
         out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
         return out
+
+if __name__ == '__main__':
+    vgg_pretrained= models.vgg19(pretrained=True).features
+    print(vgg_pretrained)

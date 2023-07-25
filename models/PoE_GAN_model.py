@@ -24,7 +24,7 @@ class POE_GAN_Model(nn.Module):
         self.FloatTensor = jt.float32
         self.ByteTensor = jt.float32
 
-        self.netG, self.netD, self.netE = self.initialize_networks(opt)
+        self.netG, self.netD = self.initialize_networks(opt)
 
         # set loss functions
         if opt.isTrain:
@@ -53,9 +53,6 @@ class POE_GAN_Model(nn.Module):
             d_loss = self.compute_discriminator_loss(
                 input_semantics, real_image)
             return d_loss
-        elif mode == 'encode_only':
-            z, mu, logvar = self.encode_z(real_image)
-            return mu, logvar
         elif mode == 'inference':
             with jt.no_grad():
                 fake_image, _ = self.generate_fake(input_semantics, real_image)
@@ -94,16 +91,13 @@ class POE_GAN_Model(nn.Module):
     def initialize_networks(self, opt):
         netG = networks.define_G(opt)
         netD = networks.define_D(opt) if opt.isTrain else None
-        netE = networks.define_E(opt) if opt.use_vae else None
 
         if not opt.isTrain or opt.continue_train:
             netG = util.load_network(netG, 'G', opt.which_epoch, opt)
             if opt.isTrain:
                 netD = util.load_network(netD, 'D', opt.which_epoch, opt)
-            if opt.use_vae:
-                netE = util.load_network(netE, 'E', opt.which_epoch, opt)
 
-        return netG, netD, netE
+        return netG, netD
 
     # preprocess the input, such as moving the tensors to GPUs and
     # transforming the label map to one-hot encoding
@@ -178,11 +172,6 @@ class POE_GAN_Model(nn.Module):
             pred_real, True, for_discriminator=True)
 
         return D_losses
-
-    def encode_z(self, real_image):
-        mu, logvar = self.netE(real_image)
-        z = self.reparameterize(mu, logvar)
-        return z, mu, logvar
 
     def generate_fake(self, input_semantics, real_image, compute_kld_loss=False):
         z = None

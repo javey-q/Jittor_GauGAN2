@@ -7,7 +7,7 @@ import jittor as jt
 from jittor import init
 from jittor import nn
 from models.networks.architecture import VGG19
-
+from jittor import models
 
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
 # When LSGAN is used, it is basically same as MSELoss,
@@ -121,3 +121,47 @@ class KLDLoss(nn.Module):
     def execute(self, mu, logvar):
         return -0.5 * jt.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
+class VGG_contrastive(nn.Module):
+    def __init__(self, requires_grad=False):
+        super().__init__()
+        self.vgg19 = models.vgg19(pretrained=True).features
+
+        if not requires_grad:
+            for param in self.parameters():
+                param.requires_grad = False
+    def execute(self, x):
+        x = self.vgg19(x)
+        print(x.shape)
+        x = x.view(x.size(0), -1)
+        return x
+
+class ContrastiveLoss(nn.Module):
+    def __init__(self, gpu_ids, temperature=0.3):
+        super(ContrastiveLoss, self).__init__()
+        self.vgg = VGG_contrastive()
+        self.temperature = temperature
+
+    def execute(self, x, y):
+        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+
+        x_norm = x_vgg / x_vgg.norm(dim=-1, keepdim=True)
+        y_norm = x_vgg / x_vgg.norm(dim=-1, keepdim=True)
+
+        logits_x = x_norm @ y_norm.t() / self.temperature
+        logits_y = y_norm @ x_norm.t() / self.temperature
+
+        print(logits_x.shape)
+        print(logits_y.shape)
+        labels = jt.arange(len(logits_x))
+        loss_x_term = nn.cross_entropy_loss(logits_x, labels)
+        loss_y_term = nn.cross_entropy_loss(logits_y, labels)
+        loss = (loss_x_term + loss_y_term) / 2
+
+        return loss
+
+if __name__ == '__main__':
+    contrastive_loss = ContrastiveLoss(gpu_ids=0)
+    input_x = jt.randn(2, 3, 384, 512)
+    input_y = jt.randn(2, 3, 384, 512)
+    output = contrastive_loss(input_x, input_y)
+    print(output)
