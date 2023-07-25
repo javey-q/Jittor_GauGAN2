@@ -116,7 +116,6 @@ class SPADEGenerator(BaseNetwork):
         x = jt.tanh(x)
         return x
 
-
 class Pix2PixHDGenerator(BaseNetwork):
     @staticmethod
     def modify_commandline_options(parser, is_train):

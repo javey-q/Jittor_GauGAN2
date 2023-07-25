@@ -120,3 +120,4 @@ class VGGLoss(nn.Module):
 class KLDLoss(nn.Module):
     def execute(self, mu, logvar):
         return -0.5 * jt.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
