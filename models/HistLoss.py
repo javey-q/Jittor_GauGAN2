@@ -8,10 +8,12 @@ def getHistMatched(imgs: jt.Var, refs: jt.Var):
     assert imgs.shape == refs.shape
     bs, c, h, w = imgs.shape
     matched_list = []
+    imgs, refs = imgs.clamp(0, 1).data, refs.clamp(0, 1).data
+    print(imgs.shape)
     for i in range(bs):
-        img, ref = imgs.data[i, :, :, :], refs.data[i, :, :, :]
-        img = np.array(img * 255, dtype=np.uint8).transpose((1, 2, 0))
-        ref = np.array(ref * 255, dtype=np.uint8).transpose((1, 2, 0))
+        img, ref = imgs[i, :, :, :], refs[i, :, :, :]
+        img = np.array((img + 1) / 2 * 255, dtype=np.uint8).transpose((1, 2, 0))
+        ref = np.array((ref + 1) / 2 * 255, dtype=np.uint8).transpose((1, 2, 0))
         matched = match_histograms(img, ref, channel_axis=-1)
         matched = matched.transpose((2, 0, 1)) / 255
         matched = matched.reshape(1, *matched.shape)

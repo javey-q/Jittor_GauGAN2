@@ -63,10 +63,10 @@ for epoch in iter_counter.training_epochs():
                 losses, iter_counter.total_steps_so_far)
 
         if iter_counter.needs_displaying():
-            visuals = OrderedDict([('input_label', data_i['label']),
-                                   ('synthesized_image',
+            visuals = OrderedDict([('3style_image', data_i['style']),
+                                   ('2synthesized_image',
                                     trainer.get_latest_generated()),
-                                   ('real_image', data_i['image'])])
+                                   ('1real_image', data_i['image'])])
             visualizer.display_current_results(
                 visuals, epoch, iter_counter.total_steps_so_far)
 

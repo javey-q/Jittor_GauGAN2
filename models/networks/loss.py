@@ -11,6 +11,7 @@ from jittor import models
 import numpy as np
 from skimage.exposure import match_histograms
 
+
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
 # When LSGAN is used, it is basically same as MSELoss,
 # but it abstracts away the need to create the target label tensor
@@ -115,13 +116,15 @@ class VGGLoss(nn.Module):
         loss = 0
         for i in range(len(x_vgg)):
             loss += self.weights[i] * \
-                self.criterion(x_vgg[i], y_vgg[i].detach())
+                    self.criterion(x_vgg[i], y_vgg[i].detach())
         return loss
+
 
 # KL Divergence loss used in VAE with an image encoder
 class KLDLoss(nn.Module):
     def execute(self, mu, logvar):
         return -0.5 * jt.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
 
 class VGG_contrastive(nn.Module):
     def __init__(self, requires_grad=False):
@@ -131,11 +134,13 @@ class VGG_contrastive(nn.Module):
         if not requires_grad:
             for param in self.parameters():
                 param.requires_grad = False
+
     def execute(self, x):
         x = self.vgg19(x)
         print(x.shape)
         x = x.view(x.size(0), -1)
         return x
+
 
 class ContrastiveLoss(nn.Module):
     def __init__(self, gpu_ids, temperature=0.3):
@@ -161,25 +166,47 @@ class ContrastiveLoss(nn.Module):
 
         return loss
 
+
+def getHistMatched(imgs: jt.Var, refs: jt.Var):
+    assert imgs.shape == refs.shape
+    bs, c, h, w = imgs.shape
+    matched_list = []
+    imgs, refs = imgs.clamp(0, 1).data, refs.clamp(0, 1).data
+    # print(imgs.shape)
+    for i in range(bs):
+        img, ref = imgs[i, :, :, :], refs[i, :, :, :]
+        img = np.array((img + 1) / 2.0 * 255.0, dtype=np.uint8).transpose((1, 2, 0))
+        ref = np.array((ref + 1) / 2.0 * 255/0, dtype=np.uint8).transpose((1, 2, 0))
+        matched = match_histograms(img, ref, channel_axis=-1)
+        matched = matched.transpose((2, 0, 1)) / 255
+        matched = matched.reshape(1, *matched.shape)
+        matched_list.append(matched)
+    matcheds = jt.array(np.concatenate(matched_list, axis=0), dtype="float32").stop_grad()
+    return matcheds
+
+
 class HistLoss(nn.Module):
     def __init__(self):
         super(HistLoss, self).__init__()
         self.l1_loss = nn.L1Loss()
+
     def execute(self, imgs, refs):
         assert imgs.shape == refs.shape
-        bs, c, h, w = imgs.shape
-        matched_list = []
-        for i in range(bs):
-            img, ref = imgs.data[i, :, :, :], refs.data[i, :, :, :]
-            img = np.array(img * 255, dtype=np.uint8).transpose((1, 2, 0))
-            ref = np.array(ref * 255, dtype=np.uint8).transpose((1, 2, 0))
-            matched = match_histograms(img, ref, channel_axis=-1)
-            matched = matched.transpose((2, 0, 1)) / 255
-            matched = matched.reshape(1, *matched.shape)
-            matched_list.append(matched)
-        matcheds = jt.array(np.concatenate(matched_list, axis=0)).stop_grad()
+        # bs, c, h, w = imgs.shape
+        # matched_list = []
+        # for i in range(bs):
+        #     img, ref = imgs.data[i, :, :, :], refs.data[i, :, :, :]
+        #     img = np.array(img * 255, dtype=np.uint8).transpose((1, 2, 0))
+        #     ref = np.array(ref * 255, dtype=np.uint8).transpose((1, 2, 0))
+        #     matched = match_histograms(img, ref, channel_axis=-1)
+        #     matched = matched.transpose((2, 0, 1)) / 255
+        #     matched = matched.reshape(1, *matched.shape)
+        #     matched_list.append(matched)
+        # matcheds = jt.array(np.concatenate(matched_list, axis=0)).stop_grad()
+        matcheds = getHistMatched(imgs, refs)
         loss = self.l1_loss(imgs, matcheds)
         return loss
+
 
 if __name__ == '__main__':
     contrastive_loss = ContrastiveLoss(gpu_ids=0)
