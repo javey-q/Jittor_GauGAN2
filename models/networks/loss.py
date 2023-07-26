@@ -8,6 +8,8 @@ from jittor import init
 from jittor import nn
 from models.networks.architecture import VGG19
 from jittor import models
+import numpy as np
+from skimage.exposure import match_histograms
 
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
 # When LSGAN is used, it is basically same as MSELoss,
@@ -157,6 +159,26 @@ class ContrastiveLoss(nn.Module):
         loss_y_term = nn.cross_entropy_loss(logits_y, labels)
         loss = (loss_x_term + loss_y_term) / 2
 
+        return loss
+
+class HistLoss(nn.Module):
+    def __init__(self):
+        super(HistLoss, self).__init__()
+        self.l1_loss = nn.L1Loss()
+    def execute(self, imgs, refs):
+        assert imgs.shape == refs.shape
+        bs, c, h, w = imgs.shape
+        matched_list = []
+        for i in range(bs):
+            img, ref = imgs.data[i, :, :, :], refs.data[i, :, :, :]
+            img = np.array(img * 255, dtype=np.uint8).transpose((1, 2, 0))
+            ref = np.array(ref * 255, dtype=np.uint8).transpose((1, 2, 0))
+            matched = match_histograms(img, ref, channel_axis=-1)
+            matched = matched.transpose((2, 0, 1)) / 255
+            matched = matched.reshape(1, *matched.shape)
+            matched_list.append(matched)
+        matcheds = jt.array(np.concatenate(matched_list, axis=0)).stop_grad()
+        loss = self.l1_loss(imgs, matcheds)
         return loss
 
 if __name__ == '__main__':

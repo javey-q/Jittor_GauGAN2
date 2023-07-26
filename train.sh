@@ -6,7 +6,7 @@ CUDA_VISIBLE_DEVICES="0" python train.py \
 --label_dir $input_path/labels \
 --image_dir $input_path/imgs \
 --use_vae --use_hist \
---label_nc 29 --no_instance --use_vae --batchSize 4 \
+--label_nc 29 --no_instance  --batchSize 4 \
 --continue_train --which_epoch 190
 
 # Todo baseline resume

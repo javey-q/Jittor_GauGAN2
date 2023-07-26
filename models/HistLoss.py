@@ -16,8 +16,7 @@ def getHistMatched(imgs: jt.Var, refs: jt.Var):
         matched = matched.transpose((2, 0, 1)) / 255
         matched = matched.reshape(1, *matched.shape)
         matched_list.append(matched)
-    matcheds = jt.float32(np.concatenate(matched_list, axis=0))
-    matcheds.stop_grad()
+    matcheds = jt.array(np.concatenate(matched_list, axis=0), dtype="float32").stop_grad()
     return matcheds
 
 

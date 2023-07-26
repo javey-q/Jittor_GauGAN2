@@ -10,7 +10,7 @@ import models.networks as networks
 import util.util as util
 import warnings
 warnings.filterwarnings("ignore")
-from models.HistLoss import HistLoss
+# from models.HistLoss import HistLoss
 
 class Pix2PixModel(nn.Module):
     @staticmethod
@@ -35,7 +35,8 @@ class Pix2PixModel(nn.Module):
                 self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids)
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
-
+            if opt.use_hist:
+                self.HistLoss = networks.HistLoss()
     # Entry point for all calls involving forward pass
     # of deep networks. We used this approach since DataParallel module
     # can't parallelize custom functions, we branch to different
@@ -135,7 +136,7 @@ class Pix2PixModel(nn.Module):
     def compute_generator_loss(self, input_semantics, real_image, style_image=None):
         G_losses = {}
         fake_image, KLD_loss, Hist_loss = self.generate_fake(
-            input_semantics, real_image, style_image, compute_kld_loss=self.opt.use_vae)
+            input_semantics, real_image, style_image, compute_kld_loss=self.opt.use_vae, compute_hist_loss=self.opt.use_hist)
 
         if self.opt.use_vae:
             G_losses['KLD'] = KLD_loss
@@ -188,7 +189,7 @@ class Pix2PixModel(nn.Module):
         z = self.reparameterize(mu, logvar)
         return z, mu, logvar
 
-    def generate_fake(self, input_semantics, real_image, style_image=None, compute_kld_loss=False):
+    def generate_fake(self, input_semantics, real_image, style_image=None, compute_kld_loss=False, compute_hist_loss=False):
         z = None
         KLD_loss = None
         Hist_loss = None
@@ -203,8 +204,9 @@ class Pix2PixModel(nn.Module):
 
         fake_image = self.netG(input_semantics, z=z)
 
-        if self.opt.use_hist:
-            Hist_loss = HistLoss(fake_image, style_image) * self.opt.lambda_hist
+        if compute_hist_loss:
+            Hist_loss = self.HistLoss(fake_image, style_image) * self.opt.lambda_hist
+
         assert (not compute_kld_loss) or self.opt.use_vae, \
             "You cannot compute KLD loss if opt.use_vae == False"
 
