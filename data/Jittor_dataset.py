@@ -118,7 +118,9 @@ class JittorDataset(BaseDataset):
             style_file = self.ref_dict[label_file].replace(".png",".jpg")
             style_path = "/".join([self.image_dir, style_file])
         else:
-            random_ref = random.randint(0, len(self.image_paths)-1)
+            # random_ref = random.randint(0, len(self.image_paths)-1)
+            random_ref = random.randint(-5,  5) + index
+            random_ref = max(min(random_ref, len(self.image_paths)-1), 0)
             style_path = self.image_paths[random_ref]
 
         style = Image.open(style_path)
@@ -126,7 +128,7 @@ class JittorDataset(BaseDataset):
         transform_image = get_transform(self.opt, params)
         style_tensor = transform_image(style)
 
-        print(f"label_path: {label_path}; img_path: {image_path}; style_path: {style_path};")
+        # print(f"label_path: {label_path}; img_path: {image_path}; style_path: {style_path};")
 
         input_dict = {'label': label_tensor,
                       'image': image_tensor,

@@ -29,8 +29,8 @@ class SPADEGenerator(BaseNetwork):
 
         self.sw, self.sh = self.compute_latent_vector_size(opt)
 
-        self.use_vae = True
-        if self.use_vae:
+        # self.use_vae = True
+        if opt.use_vae:
             # In case of VAE, we will sample from random z vector
             self.fc = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)
         else:
@@ -77,7 +77,7 @@ class SPADEGenerator(BaseNetwork):
     def execute(self, input, z=None):
         seg = input
 
-        if self.use_vae:
+        if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor
             if z is None:
                 z = jt.randn(input.size(0), self.opt.z_dim)
@@ -88,34 +88,33 @@ class SPADEGenerator(BaseNetwork):
             x = nn.interpolate(seg, size=(self.sh, self.sw))
             x = self.fc(x)
 
-        x = self.head_0(x, seg)
+        x = self.head_0(x, seg, z)
 
         x = self.up(x)
-        x = self.G_middle_0(x, seg)
+        x = self.G_middle_0(x, seg, z)
 
         if self.opt.num_upsampling_layers == 'more' or \
            self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
 
-        x = self.G_middle_1(x, seg)
+        x = self.G_middle_1(x, seg, z)
 
         x = self.up(x)
-        x = self.up_0(x, seg)
+        x = self.up_0(x, seg, z)
         x = self.up(x)
-        x = self.up_1(x, seg)
+        x = self.up_1(x, seg, z)
         x = self.up(x)
-        x = self.up_2(x, seg)
+        x = self.up_2(x, seg, z)
         x = self.up(x)
-        x = self.up_3(x, seg)
+        x = self.up_3(x, seg, z)
 
         if self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
-            x = self.up_4(x, seg)
+            x = self.up_4(x, seg, z)
 
         x = self.conv_img(nn.leaky_relu(x, 2e-1))
         x = jt.tanh(x)
         return x
-
 
 class Pix2PixHDGenerator(BaseNetwork):
     @staticmethod

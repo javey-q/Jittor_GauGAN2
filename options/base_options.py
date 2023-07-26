@@ -96,6 +96,8 @@ class BaseOptions():
                             help='# of encoder filters in the first conv layer')
         parser.add_argument('--use_vae', action='store_true',
                             help='enable training with an image encoder.')
+        parser.add_argument('--use_hist', action='store_true',
+                            help='enable training with an image encoder.')
 
         self.initialized = True
         return parser

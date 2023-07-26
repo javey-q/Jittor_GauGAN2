@@ -46,15 +46,23 @@ class SPADEResnetBlock(nn.Module):
         if self.learned_shortcut:
             self.norm_s = SPADE(spade_config_str, fin, opt.semantic_nc)
 
+        self.mlp = nn.Linear(opt.z_dim,  fout * 2)
+        self.mlp.bias.data[:fout] = 1
+        self.mlp.bias.data[fout:] = 0
+
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
-    def execute(self, x, seg):
+    def execute(self, x, seg, style):
         x_s = self.shortcut(x, seg)
 
         dx = self.conv_0(self.actvn(self.norm_0(x, seg)))
         dx = self.conv_1(self.actvn(self.norm_1(dx, seg)))
-        out = x_s + dx
 
+        global_feat = self.mlp(style).unsqueeze(2).unsqueeze(3)
+        g_gamma, g_beta = global_feat.chunk(2, 1)
+        dx = g_gamma * dx + g_beta
+
+        out = x_s + dx
         return out
 
     def shortcut(self, x, seg):
@@ -88,7 +96,6 @@ class ResnetBlock(nn.Module):
         out = x + y
         return out
 
-
 # VGG architecter, used for the perceptual loss using a pretrained VGG network
 class VGG19(nn.Module):
     def __init__(self, requires_grad=False):
@@ -121,3 +128,7 @@ class VGG19(nn.Module):
         h_relu5 = self.slice5(h_relu4)
         out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
         return out
+
+if __name__ == '__main__':
+    vgg_pretrained= models.vgg19(pretrained=True).features
+    print(vgg_pretrained)
