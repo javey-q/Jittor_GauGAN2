@@ -105,7 +105,6 @@ class LocalPoeNet(nn.Module):
             spt_stat[1] = logvar_tanh(spt_stat[1], theta=10)
             spatial_stats.append(spt_stat)
 
-
         modality_embed_list = [pre_stats, *spatial_stats]
         mu_list, logvar_list = list(zip(*modality_embed_list))
 

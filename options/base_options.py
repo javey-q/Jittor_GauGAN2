@@ -96,6 +96,8 @@ class BaseOptions():
                             help='# of encoder filters in the first conv layer')
         parser.add_argument('--use_vae', action='store_true',
                             help='enable training with an image encoder.')
+        parser.add_argument('--use_hist', action='store_true',
+                            help='enable training with an image encoder.')
 
         self.initialized = True
         return parser
@@ -110,15 +112,15 @@ class BaseOptions():
         # get the basic options
         opt, unknown = parser.parse_known_args()
 
-        # # modify model-related parser options
-        # model_name = opt.model
-        # model_option_setter = models.get_option_setter(model_name)
-        # parser = model_option_setter(parser, self.isTrain)
+        # modify model-related parser options
+        model_name = opt.model
+        model_option_setter = models.get_option_setter(model_name)
+        parser = model_option_setter(parser, self.isTrain)
 
-        # # modify dataset-related parser options
-        # dataset_mode = opt.dataset_mode
-        # dataset_option_setter = data.get_option_setter(dataset_mode)
-        # parser = dataset_option_setter(parser, self.isTrain)
+        # modify dataset-related parser options
+        dataset_mode = opt.dataset_mode
+        dataset_option_setter = data.get_option_setter(dataset_mode)
+        parser = dataset_option_setter(parser, self.isTrain)
 
         opt, unknown = parser.parse_known_args()
 

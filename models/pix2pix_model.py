@@ -10,7 +10,7 @@ import models.networks as networks
 import util.util as util
 import warnings
 warnings.filterwarnings("ignore")
-
+from models.HistLoss import HistLoss
 
 class Pix2PixModel(nn.Module):
     @staticmethod
@@ -41,24 +41,24 @@ class Pix2PixModel(nn.Module):
     # can't parallelize custom functions, we branch to different
     # routines based on |mode|.
     def execute(self, data, mode):
-        input_semantics, real_image = self.preprocess_input(data)
+        input_semantics, real_image, style_image = self.preprocess_input(data)
         # print("input_semantics: " , input_semantics.shape)
         # print("real_image: ", real_image.shape)
         # exit(0)
         if mode == 'generator':
             g_loss, generated = self.compute_generator_loss(
-                input_semantics, real_image)
+                input_semantics, real_image, style_image)
             return g_loss, generated
         elif mode == 'discriminator':
             d_loss = self.compute_discriminator_loss(
-                input_semantics, real_image)
+                input_semantics, real_image, style_image)
             return d_loss
         elif mode == 'encode_only':
             z, mu, logvar = self.encode_z(real_image)
             return mu, logvar
         elif mode == 'inference':
             with jt.no_grad():
-                fake_image, _ = self.generate_fake(input_semantics, real_image)
+                fake_image, _, _ = self.generate_fake(input_semantics, real_image, style_image)
             return fake_image
         else:
             raise ValueError("|mode| is invalid")
@@ -127,16 +127,20 @@ class Pix2PixModel(nn.Module):
             input_semantics = jt.concat(
                 (input_semantics, instance_edge_map), dim=1)
 
-        return input_semantics, data['image']
+        if self.opt.dataset_mode == 'Jittor':
+            return input_semantics, data['image'], data['style']
+        else:
+            return input_semantics, data['image'], None
 
-    def compute_generator_loss(self, input_semantics, real_image):
+    def compute_generator_loss(self, input_semantics, real_image, style_image=None):
         G_losses = {}
-
-        fake_image, KLD_loss = self.generate_fake(
-            input_semantics, real_image, compute_kld_loss=self.opt.use_vae)
+        fake_image, KLD_loss, Hist_loss = self.generate_fake(
+            input_semantics, real_image, style_image, compute_kld_loss=self.opt.use_vae)
 
         if self.opt.use_vae:
             G_losses['KLD'] = KLD_loss
+        if self.opt.use_hist:
+            G_losses['Hist'] = Hist_loss
 
         pred_fake, pred_real = self.discriminate(
             input_semantics, fake_image, real_image)
@@ -162,10 +166,10 @@ class Pix2PixModel(nn.Module):
 
         return G_losses, fake_image
 
-    def compute_discriminator_loss(self, input_semantics, real_image):
+    def compute_discriminator_loss(self, input_semantics, real_image, style_image=None):
         D_losses = {}
         with jt.no_grad():
-            fake_image, _ = self.generate_fake(input_semantics, real_image)
+            fake_image, _, _ = self.generate_fake(input_semantics, real_image, style_image)
             # fake_image = fake_image.detach()
             # fake_image.requires_grad_()
 
@@ -184,20 +188,27 @@ class Pix2PixModel(nn.Module):
         z = self.reparameterize(mu, logvar)
         return z, mu, logvar
 
-    def generate_fake(self, input_semantics, real_image, compute_kld_loss=False):
+    def generate_fake(self, input_semantics, real_image, style_image=None, compute_kld_loss=False):
         z = None
         KLD_loss = None
+        Hist_loss = None
         if self.opt.use_vae:
-            z, mu, logvar = self.encode_z(real_image)
+            if self.opt.dataset_mode == 'Jittor':
+                # assert (style_image!=None)
+                z, mu, logvar = self.encode_z(style_image)
+            else:
+                z, mu, logvar = self.encode_z(real_image)
         if compute_kld_loss:
             KLD_loss = self.KLDLoss(mu, logvar) * self.opt.lambda_kld
 
         fake_image = self.netG(input_semantics, z=z)
 
+        if self.opt.use_hist:
+            Hist_loss = HistLoss(fake_image, style_image) * self.opt.lambda_hist
         assert (not compute_kld_loss) or self.opt.use_vae, \
             "You cannot compute KLD loss if opt.use_vae == False"
 
-        return fake_image, KLD_loss
+        return fake_image, KLD_loss, Hist_loss
 
     # Given fake and real image, return the prediction of discriminator
     # for each fake and real image.
