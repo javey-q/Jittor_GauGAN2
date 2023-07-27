@@ -5,7 +5,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py \
 --name histlosstest --dataset_mode Jittor \
 --label_dir $input_path/labels \
 --image_dir $input_path/imgs \
---use_vae --use_hist \
+--use_vae --use_hist --lambda_hist 0.5 \
 --label_nc 29 --no_instance  --batchSize 10 \
 --continue_train --which_epoch 190
 
