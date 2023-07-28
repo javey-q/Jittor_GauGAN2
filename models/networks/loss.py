@@ -6,6 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import jittor as jt
 from jittor import init
 from jittor import nn
+from jittor import distributions
 from models.networks.architecture import VGG19
 from jittor import models
 import numpy as np
@@ -137,7 +138,6 @@ class VGG_contrastive(nn.Module):
 
     def execute(self, x):
         x = self.vgg19(x)
-        print(x.shape)
         x = x.view(x.size(0), -1)
         return x
 
@@ -157,8 +157,6 @@ class ContrastiveLoss(nn.Module):
         logits_x = x_norm @ y_norm.t() / self.temperature
         logits_y = y_norm @ x_norm.t() / self.temperature
 
-        print(logits_x.shape)
-        print(logits_y.shape)
         labels = jt.arange(len(logits_x))
         loss_x_term = nn.cross_entropy_loss(logits_x, labels)
         loss_y_term = nn.cross_entropy_loss(logits_y, labels)
@@ -192,25 +190,45 @@ class HistLoss(nn.Module):
 
     def execute(self, imgs, refs):
         assert imgs.shape == refs.shape
-        # bs, c, h, w = imgs.shape
-        # matched_list = []
-        # for i in range(bs):
-        #     img, ref = imgs.data[i, :, :, :], refs.data[i, :, :, :]
-        #     img = np.array(img * 255, dtype=np.uint8).transpose((1, 2, 0))
-        #     ref = np.array(ref * 255, dtype=np.uint8).transpose((1, 2, 0))
-        #     matched = match_histograms(img, ref, channel_axis=-1)
-        #     matched = matched.transpose((2, 0, 1)) / 255
-        #     matched = matched.reshape(1, *matched.shape)
-        #     matched_list.append(matched)
-        # matcheds = jt.array(np.concatenate(matched_list, axis=0)).stop_grad()
         matcheds = getHistMatched(imgs, refs)
         loss = self.l1_loss(imgs, matcheds)
         return loss
 
+def kl_divergence(mu1, sigma_1, mu2, sigma_2):
+    # mu1, sigma_1, mu2, sigma_2 = nn.avg_pool2d(mu1, (1,1)), nn.avg_pool2d(sigma_1, (1,1),), \
+    #                              nn.avg_pool2d(mu2, (1,1)), nn.avg_pool2d(sigma_2, (1,1))
+    mu1, sigma_1, mu2, sigma_2 = mu1.view(mu1.size(0),-1), sigma_1.view(mu1.size(0),-1), \
+                                 mu2.view(mu1.size(0),-1), sigma_2.view(mu1.size(0),-1)
+
+    cov1 = jt.stack([jt.diag(sigma) for sigma in sigma_1.exp()])
+    print(cov1)
+    mvn1 = distributions.Normal(mu1, cov1)
+    cov2 = jt.stack([jt.diag(sigma) for sigma in sigma_2.exp()])
+    print(cov2)
+    mvn2 = distributions.Normal(mu2, cov2)
+
+    return distributions.kl_divergence(mvn1, mvn2).sum()
+
+
 
 if __name__ == '__main__':
-    contrastive_loss = ContrastiveLoss(gpu_ids=0)
-    input_x = jt.randn(2, 3, 384, 512)
-    input_y = jt.randn(2, 3, 384, 512)
-    output = contrastive_loss(input_x, input_y)
-    print(output)
+    # contrastive_loss = ContrastiveLoss(gpu_ids=0)
+    # input_x = jt.randn(2, 3, 384, 512)
+    # input_y = jt.randn(2, 3, 384, 512)
+    # output = contrastive_loss(input_x, input_y)
+    # print(output)
+    from poe_generator import PoE_Generator
+    from poe_discriminator import PoE_Discriminator
+    from options.train_options import  TrainOptions
+    opt =  TrainOptions().parse()
+    criterionGAN = GANLoss(
+        opt.gan_mode, tensor=jt.float32, opt=opt)
+
+    segment = jt.randn(1, 1, 384, 512)
+    style = jt.randn(1, 3, 384, 512)
+    generator = PoE_Generator(opt)
+    fake_image, kl_inputs = generator(segment, style)
+    discriminator = PoE_Discriminator(opt)
+    pred_fake = discriminator(fake_image, segment)
+    lossGAN = criterionGAN(
+        pred_fake, True, for_discriminator=False)

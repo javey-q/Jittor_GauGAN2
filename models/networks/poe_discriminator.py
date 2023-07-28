@@ -126,22 +126,27 @@ class ImageEncoder(nn.Module):
 
 config_input_shape = (384, 512)
 config_num_stage = 4 # 2 **（stage + 3) = image_size
-Base_channels_for_latent = 4
+Base_channels_for_latent = 8
 Base_channels_for_Dec = 64
+
 class PoE_Discriminator(nn.Module):
-    def __init__(self, opt, base_channel=Base_channels_for_Dec, input_shape=config_input_shape, num_stage=config_num_stage):
+    def __init__(self, opt, num_stage=config_num_stage, base_channel=Base_channels_for_Dec,
+                 base_channel_latent=Base_channels_for_latent):
         super().__init__()
 
         self.opt = opt
-        self.input_shape = input_shape
+        self.input_shape = (round(opt.crop_size / opt.aspect_ratio), opt.crop_size)
 
-        self.seg_encoder = SegmentationEncoder()
+        self.seg_encoder = SegmentationEncoder(self.opt.semantic_nc,
+                                               base_channel_latent,
+                                               num_stage,
+                                               self.input_shape)
         # self.style_encoder = StyleEncoder()
 
         self.image_encoder = ImageEncoder(in_channels=3,
                  middle_channel=base_channel,
                  num_stage=num_stage,
-                 image_shape=input_shape)
+                 image_shape=self.input_shape)
 
         d_channel_list = [base_channel * (2 ** i) for i in range(num_stage-1)] + [512]  # 64, 128, 512, 1024
         self.num_stage = num_stage
@@ -199,7 +204,7 @@ if __name__ == '__main__':
     image = jt.randn(1, 3, 384, 512)
     segment = jt.randn(1, 1, 384, 512)
     # style = jt.randn(1, 3, 384, 512)
-    discriminator = Discriminator(opt)
+    discriminator = PoE_Discriminator(opt)
     outputs = discriminator(image, segment)
     # for output in outputs:
     #     print(output.shape)

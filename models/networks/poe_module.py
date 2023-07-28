@@ -85,7 +85,7 @@ class LocalPoeNet(nn.Module):
         self.local_poe = PoE()
         self.pre_cnn = CNNHead(pre_out_channel, spatial_channel)
         self.spatial_1_cnn = CNNHead(pre_out_channel + spatial_channel, spatial_channel)
-        self.spatial_2_cnn = CNNHead(pre_out_channel + spatial_channel, spatial_channel)
+        # self.spatial_2_cnn = CNNHead(pre_out_channel + spatial_channel, spatial_channel)
 
         # if you want to use more spatial modality, add that modality cnn head
 
@@ -114,7 +114,7 @@ class LocalPoeNet(nn.Module):
         z_k = self.reparameterize(mu, logvar)
 
         # FIXME
-        return z_k, spatial_stats  # p' , p(z|y)
+        return z_k, modality_embed_list  # p' , p(z|y)
 
     def reparameterize(self, mu, logvar):
 

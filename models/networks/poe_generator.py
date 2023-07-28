@@ -142,7 +142,7 @@ class LGAdaIN(nn.Module):
         return out
 
 config_input_shape = (384, 512)
-num_stage = 4 # 2 **（stage + 3) = image_size
+config_num_stage = 4 # 2 **（stage + 3) = image_size
 Base_channels_for_latent = 8  # 8 / 16 / 32 / 64
 Base_channels_for_Dec = 64  #
 input_type = 'PoE_prior'  # PoE_prior  Constant
@@ -154,8 +154,8 @@ class PoE_Generator(nn.Module):
 
         return parser
 
-    def __init__(self, opt, num_stage=num_stage, base_channel_dec=Base_channels_for_Dec,
-                 base_channel_latent=Base_channels_for_latent, input_type=input_type, latent_dim = 512):
+    def __init__(self, opt, num_stage=config_num_stage, base_channel_dec=Base_channels_for_Dec,
+                 base_channel_latent=Base_channels_for_latent, input_type=input_type, latent_dim=512):
         super().__init__()
         self.opt = opt
 
@@ -166,11 +166,11 @@ class PoE_Generator(nn.Module):
         self.input_type = input_type
 
         # encoder
-        input_shape = (round(opt.crop_size / opt.aspect_ratio), opt.crop_size)
-        self.seg_encoder = SegmentationEncoder(1, base_channel_latent, num_stage, input_shape)
+        self.input_shape = (round(opt.crop_size / opt.aspect_ratio), opt.crop_size)
+        self.seg_encoder = SegmentationEncoder(self.opt.semantic_nc, base_channel_latent, num_stage, self.input_shape)
         self.seg_mlp_head = MlpHead(getattr(self.seg_encoder,'out_dim'), spatial=True)
 
-        self.style_encoder = StyleEncoder(num_stage=num_stage)
+        self.style_encoder = StyleEncoder(out_channels=latent_dim, num_stage=num_stage)
         self.style_mlp_head = MlpHead(getattr(self.style_encoder, 'out_dim'), seperate=True)
 
         # define new decoder
@@ -196,7 +196,7 @@ class PoE_Generator(nn.Module):
         for i in range(num_stage):
             pre_out_channel = pre_out_channel // 2
             if i == (num_stage - 1):
-                spatial_channel = 1
+                spatial_channel = self.opt.semantic_nc
             else:
                 spatial_channel = spatial_channels[-2-i]
             decoder_network.append(G_ResBlock(pre_out_channel, spatial_channel, latent_dim, fused=False, initial=False))
@@ -225,6 +225,7 @@ class PoE_Generator(nn.Module):
 
         style_stats = self.style_mlp_head(style_features)  #  [(b, 512), (b, 512)]
         modality_stats.append(style_stats)
+        style_z = self.reparameterize(*style_stats)
 
         # Global PoE_Net
         prior_stats = [self.prior_mu.expand(B, self.latent_dim), self.prior_logvar.expand(B,self.latent_dim)]
@@ -238,12 +239,10 @@ class PoE_Generator(nn.Module):
             pre_output = pre_output.view(B, self.maximum_channel, self.first_h , self.first_w)
 
 
-        kl_inputs = {'style':style_stats, 'segment':seg_stats, 'segment_multi':[]}
+        kl_inputs = {'style':style_stats, 'segment':seg_stats, 'multi':[]}
         for i, resblock in enumerate(self.decoder):
             spatial_idx = - i - 1
-            style_z = self.reparameterize(*style_stats)
-            pre_output, kl_input = resblock(pre_output, style_z, [segment_features[spatial_idx]])
-            kl_inputs['segment_multi'].append(kl_input[0])
+            pre_output, _ = resblock(pre_output, style_z, [segment_features[spatial_idx]])
 
         out = self.out_layer(pre_output)
         return out, kl_inputs
@@ -261,7 +260,7 @@ if __name__ == '__main__':
     opt =  TrainOptions().parse()
     segment = jt.randn(1, 1, 384, 512)
     style = jt.randn(1, 3, 384, 512)
-    generator = Generator(opt)
+    generator = PoE_Generator(opt)
     output, kl_inputs = generator(segment, style)
     print(output.shape)
 

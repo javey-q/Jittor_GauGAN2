@@ -8,11 +8,13 @@ from jittor import nn
 import jittor.transform as transform
 import models.networks as networks
 import util.util as util
+from models.networks.poe_generator import PoE_Generator
+from models.networks.poe_discriminator import PoE_Discriminator
 import warnings
 warnings.filterwarnings("ignore")
 
 
-class POE_GAN_Model(nn.Module):
+class PoEGAN_Model(nn.Module):
     @staticmethod
     def modify_commandline_options(parser, is_train):
         networks.modify_commandline_options(parser, is_train)
@@ -30,40 +32,39 @@ class POE_GAN_Model(nn.Module):
         if opt.isTrain:
             self.criterionGAN = networks.GANLoss(
                 opt.gan_mode, tensor=self.FloatTensor, opt=self.opt)
-            self.criterionFeat = nn.L1Loss()
-            if not opt.no_vgg_loss:
-                self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids)
-            if opt.use_vae:
-                self.KLDLoss = networks.KLDLoss()
+            if not opt.no_contrast_loss:
+                self.criterionContrast= networks.ContrastiveLoss(self.opt.gpu_ids)
+            self.KLDLoss = networks.KLDLoss()
+            if opt.use_hist:
+                self.HistLoss = networks.HistLoss()
 
     # Entry point for all calls involving forward pass
     # of deep networks. We used this approach since DataParallel module
     # can't parallelize custom functions, we branch to different
     # routines based on |mode|.
     def execute(self, data, mode):
-        input_semantics, real_image = self.preprocess_input(data)
+        input_semantics, real_image, style_image = self.preprocess_input(data)
         # print("input_semantics: " , input_semantics.shape)
         # print("real_image: ", real_image.shape)
         # exit(0)
         if mode == 'generator':
             g_loss, generated = self.compute_generator_loss(
-                input_semantics, real_image)
+                input_semantics, real_image, style_image)
             return g_loss, generated
         elif mode == 'discriminator':
             d_loss = self.compute_discriminator_loss(
-                input_semantics, real_image)
+                input_semantics, real_image, style_image)
             return d_loss
         elif mode == 'inference':
             with jt.no_grad():
-                fake_image, _ = self.generate_fake(input_semantics, real_image)
+                fake_image, _, _ = self.generate_fake(input_semantics, style_image)
             return fake_image
         else:
             raise ValueError("|mode| is invalid")
 
     def create_optimizers(self, opt):
         G_params = list(self.netG.parameters())
-        if opt.use_vae:
-            G_params += list(self.netE.parameters())
+
         if opt.isTrain:
             D_params = list(self.netD.parameters())
 
@@ -81,16 +82,14 @@ class POE_GAN_Model(nn.Module):
     def save(self, epoch):
         util.save_network(self.netG, 'G', epoch, self.opt)
         util.save_network(self.netD, 'D', epoch, self.opt)
-        if self.opt.use_vae:
-            util.save_network(self.netE, 'E', epoch, self.opt)
 
     ############################################################################
     # Private helper methods
     ############################################################################
 
     def initialize_networks(self, opt):
-        netG = networks.define_G(opt)
-        netD = networks.define_D(opt) if opt.isTrain else None
+        netG = PoE_Generator(opt)
+        netD = PoE_Discriminator(opt) if opt.isTrain else None
 
         if not opt.isTrain or opt.continue_train:
             netG = util.load_network(netG, 'G', opt.which_epoch, opt)
@@ -114,23 +113,20 @@ class POE_GAN_Model(nn.Module):
         input_label = jt.zeros((bs, nc, h, w), dtype=self.FloatTensor)
         input_semantics = input_label.scatter_(1, label_map, jt.float32(1.0))
 
-        # concatenate instance map if it exists
-        if not self.opt.no_instance:
-            inst_map = data['instance']
-            instance_edge_map = self.get_edges(inst_map)
-            input_semantics = jt.concat(
-                (input_semantics, instance_edge_map), dim=1)
+        if self.opt.dataset_mode == 'Jittor':
+            return input_semantics, data['image'], data['style']
+        else:
+            return input_semantics, data['image'], None
 
-        return input_semantics, data['image']
-
-    def compute_generator_loss(self, input_semantics, real_image):
+    def compute_generator_loss(self, input_semantics, real_image, style_image):
         G_losses = {}
 
-        fake_image, KLD_loss = self.generate_fake(
-            input_semantics, real_image, compute_kld_loss=self.opt.use_vae)
+        fake_image, KLD_loss, Hist_loss = self.generate_fake(
+            input_semantics, style_image, compute_kld_loss=True, compute_hist_loss=self.opt.use_hist)
 
-        if self.opt.use_vae:
-            G_losses['KLD'] = KLD_loss
+        G_losses['KLD'] = KLD_loss
+        if self.opt.use_hist:
+            G_losses['Hist'] = Hist_loss
 
         pred_fake, pred_real = self.discriminate(
             input_semantics, fake_image, real_image)
@@ -138,28 +134,16 @@ class POE_GAN_Model(nn.Module):
         G_losses['GAN'] = self.criterionGAN(
             pred_fake, True, for_discriminator=False)
 
-        if not self.opt.no_ganFeat_loss:
-            num_D = len(pred_fake)
-            GAN_Feat_loss = self.FloatTensor(0.)
-            for i in range(num_D):  # for each discriminator
-                # last output is the final prediction, so we exclude it
-                num_intermediate_outputs = len(pred_fake[i]) - 1
-                for j in range(num_intermediate_outputs):  # for each layer output
-                    unweighted_loss = self.criterionFeat(
-                        pred_fake[i][j], pred_real[i][j].detach())
-                    GAN_Feat_loss += unweighted_loss * self.opt.lambda_feat / num_D
-            G_losses['GAN_Feat'] = GAN_Feat_loss
-
-        if not self.opt.no_vgg_loss:
-            G_losses['VGG'] = self.criterionVGG(
-                fake_image, real_image) * self.opt.lambda_vgg
+        if not self.opt.no_contrast_loss:
+            G_losses['Contrast'] = self.criterionContrast(
+                fake_image, real_image) * self.opt.lambda_contrast
 
         return G_losses, fake_image
 
-    def compute_discriminator_loss(self, input_semantics, real_image):
+    def compute_discriminator_loss(self, input_semantics, real_image, style_image):
         D_losses = {}
         with jt.no_grad():
-            fake_image, _ = self.generate_fake(input_semantics, real_image)
+            fake_image, _, _ = self.generate_fake(input_semantics, style_image)
             # fake_image = fake_image.detach()
             # fake_image.requires_grad_()
 
@@ -173,35 +157,37 @@ class POE_GAN_Model(nn.Module):
 
         return D_losses
 
-    def generate_fake(self, input_semantics, real_image, compute_kld_loss=False):
-        z = None
+    def generate_fake(self, input_semantics, style_image, compute_kld_loss=False, compute_hist_loss=False):
+        Hist_loss = None
         KLD_loss = None
-        if self.opt.use_vae:
-            z, mu, logvar = self.encode_z(real_image)
+        fake_image, kl_inputs = self.netG(input_semantics, style_image)
         if compute_kld_loss:
-            KLD_loss = self.KLDLoss(mu, logvar) * self.opt.lambda_kld
+            kl_style = kl_inputs['style']
+            KLD_loss = self.KLDLoss(kl_style[0], kl_style[1]) * self.opt.lambda_kld_style
+            kl_segment = kl_inputs['segment']
+            KLD_loss += self.KLDLoss(kl_segment[0], kl_segment[1]) * self.opt.lambda_kld_segment
+        if compute_hist_loss:
+            Hist_loss = self.HistLoss(fake_image, style_image) * self.opt.lambda_hist
 
-        fake_image = self.netG(input_semantics, z=z)
 
-        assert (not compute_kld_loss) or self.opt.use_vae, \
-            "You cannot compute KLD loss if opt.use_vae == False"
-
-        return fake_image, KLD_loss
+        return fake_image, KLD_loss, Hist_loss
 
     # Given fake and real image, return the prediction of discriminator
     # for each fake and real image.
 
     def discriminate(self, input_semantics, fake_image, real_image):
-        fake_concat = jt.concat([input_semantics, fake_image], dim=1)
-        real_concat = jt.concat([input_semantics, real_image], dim=1)
+        # fake_concat = jt.concat([input_semantics, fake_image], dim=1)
+        # real_concat = jt.concat([input_semantics, real_image], dim=1)
 
         # In Batch Normalization, the fake and real images are
         # recommended to be in the same batch to avoid disparate
         # statistics in fake and real images.
         # So both fake and real images are fed to D all at once.
-        fake_and_real = jt.concat([fake_concat, real_concat], dim=0)
+        image_concat = jt.concat([fake_image, real_image], dim=0)
+        segment_concat = jt.concat([input_semantics, input_semantics], dim=0)
 
-        discriminator_out = self.netD(fake_and_real)
+
+        discriminator_out = self.netD(image_concat, segment_concat)
 
         pred_fake, pred_real = self.divide_pred(discriminator_out)
 
@@ -242,3 +228,4 @@ class POE_GAN_Model(nn.Module):
 
     def use_gpu(self):
         return len(self.opt.gpu_ids) > 0
+

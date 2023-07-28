@@ -65,21 +65,20 @@ class ConvEncoder(BaseNetwork):
 
 
 config_input_shape = (384, 512)
-config_stage = 4
-config_spatial_channel = 64
-config_base_channel = 8
+config_num_stage = 4
+Base_channels_for_Dec = 64
+Base_channels_for_latent = 8
 
 # segmentation map is resized to match the resolution of the
 # corresponding feature map using nearest-neighbor downsampling
 class SegmentationEncoder(nn.Module):
     def __init__(self,
                  in_channels=1,
-                 base_channel=config_base_channel,
-                 num_stage: int = config_stage,  # Maximum # channels for Latent // Base # channels for Latent
+                 base_channel=Base_channels_for_latent,
+                 num_stage=config_num_stage,  # Maximum # channels for Latent // Base # channels for Latent
                  segmap_shape=config_input_shape,
                  ):
         super(SegmentationEncoder, self).__init__()
-
         self.ms_out_dims = []
         sh, sw = segmap_shape
         downsamples, embeds, convs = [], [], []
@@ -111,6 +110,7 @@ class SegmentationEncoder(nn.Module):
                 x_d = self.downsamples[i](seg)
 
             elif i > 0:
+
                 x = conv(embed(x_d) + x)
 
                 if i != (len(self.downsamples)):
@@ -165,7 +165,7 @@ class StyleEncoder(nn.Module):
     def __init__(self,
                  out_channels=512,
                  in_channels=3,
-                 num_stage=config_stage,
+                 num_stage=config_num_stage,
                  middle_channels=None,
                  ):
         super(StyleEncoder, self).__init__()

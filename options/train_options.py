@@ -59,15 +59,21 @@ class TrainOptions(BaseOptions):
                             default=10.0, help='weight for feature matching loss')
         parser.add_argument('--lambda_vgg', type=float,
                             default=10.0, help='weight for vgg loss')
+        parser.add_argument('--lambda_contrast', type=float,
+                            default=5.0, help='weight for contrast loss')
         parser.add_argument('--no_ganFeat_loss', action='store_true',
                             help='if specified, do *not* use discriminator feature matching loss')
         parser.add_argument('--no_vgg_loss', action='store_true',
                             help='if specified, do *not* use VGG feature matching loss')
+        parser.add_argument('--no_contrast_loss', action='store_true',
+                            help='if specified, do *not* use VGG feature contrastive loss')
         parser.add_argument('--gan_mode', type=str,
                             default='hinge', help='(ls|original|hinge)')
         parser.add_argument(
             '--netD', type=str, default='multiscale', help='(n_layers|multiscale|image)')
         parser.add_argument('--lambda_kld', type=float, default=0.05)
+        parser.add_argument('--lambda_kld_style', type=float, default=0.01)
+        parser.add_argument('--lambda_kld_segment', type=float, default=0.1)
         parser.add_argument('--lambda_hist', type=float, default=0.1)
         self.isTrain = True
         return parser

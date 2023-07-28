@@ -4,7 +4,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 
 from models.pix2pix_model import Pix2PixModel
-
+from models.PoEGAN_model import PoEGAN_Model
 
 class Pix2PixTrainer():
     """
@@ -15,7 +15,12 @@ class Pix2PixTrainer():
 
     def __init__(self, opt):
         self.opt = opt
-        self.pix2pix_model = Pix2PixModel(opt)
+        if opt.model == 'pix2pix':
+            self.pix2pix_model = Pix2PixModel(opt)
+        elif opt.model == 'PoEGAN':
+            self.pix2pix_model = PoEGAN_Model(opt)
+        else:
+            raise 'model error'
         self.pix2pix_model_on_one_gpu = self.pix2pix_model
 
         self.generated = None
