@@ -201,12 +201,13 @@ class PoEGAN_Model(nn.Module):
             fake = []
             real = []
             for p in pred:
-                fake.append([tensor[:tensor.size(0) // 2] for tensor in p])
-                real.append([tensor[tensor.size(0) // 2:] for tensor in p])
+                # fake.append([tensor[:tensor.size(0) // 2] for tensor in p])
+                # real.append([tensor[tensor.size(0) // 2:] for tensor in p])
+                fake.append(p[:p.size(0) // 2])
+                real.append(p[p.size(0) // 2:])
         else:
             fake = pred[:pred.size(0) // 2]
             real = pred[pred.size(0) // 2:]
-
         return fake, real
 
     def get_edges(self, t):
