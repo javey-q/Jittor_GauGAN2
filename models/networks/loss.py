@@ -94,6 +94,7 @@ class GANLoss(nn.Module):
             for pred_i in input:
                 if isinstance(pred_i, list):
                     pred_i = pred_i[-1]
+                # print(pred_i.shape)
                 loss_tensor = self.loss(
                     pred_i, target_is_real, for_discriminator)
                 bs = 1 if len(loss_tensor.size()) == 0 else loss_tensor.size(0)
