@@ -67,8 +67,8 @@ class G_ResBlock(nn.Module):
             upsample = True
 
         out_channel = pre_out_channel // 2  # 1024 -> 512
-        # FIXME  learned_shortcut:  add norm1  and kernel -> 3
-        self.conv1 = ConvBlock(pre_out_channel, out_channel, 1, 1, upsample=upsample, fused=fused)
+        # FIXME  learned_shortcut:  add norm1  and kernel -> 3  p->0
+        self.conv1 = ConvBlock(pre_out_channel, out_channel, 1, 0, upsample=upsample, fused=fused)
         self.norm1 =  nn.InstanceNorm2d(out_channel, affine=False)
 
         self.conv2_1 = ConvBlock(pre_out_channel, out_channel, 3, 1, upsample=upsample, fused=fused)

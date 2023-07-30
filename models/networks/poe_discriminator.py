@@ -53,7 +53,8 @@ class Resblock(nn.Module):
 
         if self.learned_shortcut:
             self.norm_s = nn.InstanceNorm2d(in_channels, affine=False)
-            self.convs = ConvBlock(in_channels, out_channels, 1, 1, downsample=True, fused=fused)
+            # FIXME k p
+            self.convs = ConvBlock(in_channels, out_channels, 1, 0, downsample=True, fused=fused)
 
     def execute(self, x):
         x_s = self.shortcut(x)
