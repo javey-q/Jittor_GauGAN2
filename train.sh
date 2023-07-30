@@ -28,4 +28,4 @@ CUDA_VISIBLE_DEVICES=1 python train.py \
       --dataset_mode Jittor \
       --label_dir $input_path/labels \
       --image_dir $input_path/imgs \
-      --label_nc 29  --no_instance  --batchSize 12
+      --label_nc 29  --no_instance  --batchSize 8
