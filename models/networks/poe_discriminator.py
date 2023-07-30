@@ -19,13 +19,13 @@ class MPD(nn.Module):
         # self.linear = nn.utils.spectral_norm(EqualConv2d(in_channels, 1, 1, padding=0).conv ,'weight_orig')
         self.linear = EqualConv2d(in_channels, 1, kernel_size=1, padding=0)
 
+    # fix
     def execute(self, x, y = None):
         out = self.linear(x)  # [N,1,H,W]
 
         if y is not None:
             for y_k in y:
                 # y_k = torch.sum(y_k*x, dim=1, keepdim=True) # [N,C,H,W] -> [N,1,H,W]
-
                 y_k = (y_k * x).mean(dim=1, keepdim=True)
 
                 out += y_k
@@ -53,7 +53,7 @@ class Resblock(nn.Module):
 
         if self.learned_shortcut:
             self.norm_s = nn.InstanceNorm2d(in_channels, affine=False)
-            self.convs = ConvBlock(in_channels, out_channels, 3, 1, downsample=True, fused=fused)
+            self.convs = ConvBlock(in_channels, out_channels, 1, 1, downsample=True, fused=fused)
 
     def execute(self, x):
         x_s = self.shortcut(x)

@@ -51,6 +51,8 @@ class TrainOptions(BaseOptions):
                             help='initial learning rate for adam')
         parser.add_argument('--D_steps_per_G', type=int, default=1,
                             help='number of discriminator iterations per generator iterations.')
+        parser.add_argument('--grad_clip', type=float, default=10,
+                            help='grad_clip')
 
         # for discriminators
         parser.add_argument('--ndf', type=int, default=64,
@@ -60,7 +62,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lambda_vgg', type=float,
                             default=10.0, help='weight for vgg loss')
         parser.add_argument('--lambda_contrast', type=float,
-                            default=5.0, help='weight for contrast loss')
+                            default=3.0, help='weight for contrast loss')
         parser.add_argument('--no_ganFeat_loss', action='store_true',
                             help='if specified, do *not* use discriminator feature matching loss')
         parser.add_argument('--no_vgg_loss', action='store_true',

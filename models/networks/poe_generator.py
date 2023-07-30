@@ -67,8 +67,10 @@ class G_ResBlock(nn.Module):
             upsample = True
 
         out_channel = pre_out_channel // 2  # 1024 -> 512
+        # FIXME  learned_shortcut:  add norm1  and kernel -> 3
+        self.conv1 = ConvBlock(pre_out_channel, out_channel, 1, 1, upsample=upsample, fused=fused)
+        self.norm1 =  nn.InstanceNorm2d(out_channel, affine=False)
 
-        self.conv1 = ConvBlock(pre_out_channel, out_channel, 3, 1, upsample=upsample, fused=fused)
         self.conv2_1 = ConvBlock(pre_out_channel, out_channel, 3, 1, upsample=upsample, fused=fused)
         self.conv2_2 = ConvBlock(out_channel, out_channel, 3, 1, upsample=False, fused=fused)
 
@@ -76,13 +78,12 @@ class G_ResBlock(nn.Module):
         self.local_poe = LocalPoeNet(pre_out_channel, spatial_channel)
 
     def execute(self, pre_output, w, spatial_feats):
-
         # 0. upsample
         up_pre_output = self.upsample(pre_output)
 
         # 1. conv ( to residual)
         # FIXME pre_output -> up_pre_output
-        out_1 = self.conv1(pre_output)
+        out_1 = self.norm1(self.conv1(pre_output))
 
         # 2. conv ( to lgadain)
         # FIXME pre_output -> up_pre_output
