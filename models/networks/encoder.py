@@ -143,7 +143,7 @@ class StyleResblock(nn.Module):
 
         if self.learned_shortcut:
             self.norm_s = nn.InstanceNorm2d(in_channels, affine=False)
-            self.conv_s = ConvBlock(in_channels, out_channels, 3, 1, downsample=True, fused=fused)
+            self.conv_s = ConvBlock(in_channels, out_channels, 1, 1, downsample=True, fused=fused)
 
     def execute(self, style):
         x_s = self.shortcut(style)
