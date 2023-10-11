@@ -66,7 +66,8 @@ for epoch in iter_counter.training_epochs():
             visuals = OrderedDict([('3style_image', data_i['style']),
                                    ('2synthesized_image',
                                     trainer.get_latest_generated()),
-                                   ('1real_image', data_i['image'])])
+                                   ('1real_image', data_i['image']),
+                                   ('input_label', data_i['label'])],)
             visualizer.display_current_results(
                 visuals, epoch, iter_counter.total_steps_so_far)
 

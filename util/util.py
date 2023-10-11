@@ -122,9 +122,10 @@ def tensor2label(label_tensor, n_label, imtype=np.uint8, tile=False):
         return tensor2im(label_tensor, imtype)
     label_tensor = label_tensor.float()
     if label_tensor.size()[0] > 1:
-        label_tensor = label_tensor.max(0, keepdim=True)[1]
-    label_tensor = Colorize(n_label)(label_tensor)
-    label_numpy = np.transpose(label_tensor.numpy(), (1, 2, 0))
+        label_tensor = label_tensor.argmax(0, keepdims=True)[0]
+        # label_tensor = label_tensor.max(0, keepdim=True)[1]
+    label_color = Colorize(n_label)(label_tensor.numpy())
+    label_numpy = np.transpose(label_color, (1, 2, 0))
     result = label_numpy.astype(imtype)
     return result
 
@@ -268,11 +269,11 @@ def labelcolormap(N):
 class Colorize(object):
     def __init__(self, n=35):
         self.cmap = labelcolormap(n)
-        self.cmap = jt.array(self.cmap[:n])
+        # self.cmap = jt.array(self.cmap[:n])
 
     def __call__(self, gray_image):
-        size = gray_image.size()
-        color_image = jt.zeros((3, size[1], size[2]))
+        size = gray_image.shape
+        color_image = np.zeros((3, size[1], size[2]))
         # color_image = jt.ByteTensor(3, size[1], size[2]).fill_(0)
 
         for label in range(0, len(self.cmap)):

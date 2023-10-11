@@ -175,7 +175,7 @@ def getHistMatched(imgs: jt.Var, refs: jt.Var):
     for i in range(bs):
         img, ref = imgs[i, :, :, :], refs[i, :, :, :]
         img = np.array((img + 1) / 2.0 * 255.0, dtype=np.uint8).transpose((1, 2, 0))
-        ref = np.array((ref + 1) / 2.0 * 255/0, dtype=np.uint8).transpose((1, 2, 0))
+        ref = np.array((ref + 1) / 2.0 * 255.0, dtype=np.uint8).transpose((1, 2, 0))
         matched = match_histograms(img, ref, channel_axis=-1)
         matched = matched.transpose((2, 0, 1)) / 255
         matched = matched.reshape(1, *matched.shape)
@@ -210,26 +210,103 @@ def kl_divergence(mu1, sigma_1, mu2, sigma_2):
 
     return distributions.kl_divergence(mvn1, mvn2).sum()
 
+class SoftHistogram(nn.Module):
+    def __init__(self, bins, min, max, sigma):
+        super(SoftHistogram, self).__init__()
+        self.bins = bins
+        self.min = min
+        self.max = max
+        self.sigma = sigma
+        self.delta = float(max - min) / float(bins)
+        self.centers = float(min) + self.delta * (jt.arange(bins).float() + 0.5)
+        self.centers.stop_grad()
+
+    def execute(self, x):
+        x = jt.unsqueeze(x, 0) - jt.unsqueeze(self.centers, 1)
+        x = jt.sigmoid(self.sigma * (x + self.delta/2)) - jt.sigmoid(self.sigma * (x - self.delta/2))
+        x = x.sum(dim=1)
+        # y = x.sum()
+        # x = x / (x.sum() + 0.0001)
+        return x
+
+    def execute_1(self, x):
+        x = jt.unsqueeze(x, 0) - jt.unsqueeze(self.centers, 1)
+        x = jt.exp(-0.5 * (x / self.sigma) ** 2) / (self.sigma * np.sqrt(np.pi * 2)) * self.delta
+        x = x.sum(dim=-1)
+        # x = x / (x.sum() + 0.00001)
+        return x
+
+def hist_loss(imgs, refs, normalize=True):
+    assert imgs.shape == refs.shape
+    N, C, H, W = imgs.shape
+    bit = 256
+    soft_hist = SoftHistogram(bins=bit, min=0, max=1, sigma=400)
+    loss = []
+    if normalize:
+        imgs = (imgs + 1) / 2.0
+        refs = (refs + 1) / 2.0
+    imgs = imgs.reshape(N, C, -1)
+    refs = refs.reshape(N, C, -1)
+    for n in range(N):
+        img = imgs[n]
+        ref = refs[n]
+        for c in range(C):
+            img_hist = soft_hist(img[c])
+            ref_hist = soft_hist(ref[c])
+            loss.append(nn.L1Loss()(img_hist, ref_hist))
+        loss = sum(loss) / (N * H * W)
+    return loss
+
 
 
 if __name__ == '__main__':
+    # ContrastiveLoss
     # contrastive_loss = ContrastiveLoss(gpu_ids=0)
     # input_x = jt.randn(2, 3, 384, 512)
     # input_y = jt.randn(2, 3, 384, 512)
     # output = contrastive_loss(input_x, input_y)
     # print(output)
-    from poe_generator import PoE_Generator
-    from poe_discriminator import PoE_Discriminator
-    from options.train_options import  TrainOptions
-    opt =  TrainOptions().parse()
-    criterionGAN = GANLoss(
-        opt.gan_mode, tensor=jt.float32, opt=opt)
 
-    segment = jt.randn(1, 1, 384, 512)
-    style = jt.randn(1, 3, 384, 512)
-    generator = PoE_Generator(opt)
-    fake_image, kl_inputs = generator(segment, style)
-    discriminator = PoE_Discriminator(opt)
-    pred_fake = discriminator(fake_image, segment)
-    lossGAN = criterionGAN(
-        pred_fake, True, for_discriminator=False)
+    # criterionGAN
+    # from poe_generator import PoE_Generator
+    # from poe_discriminator import PoE_Discriminator
+    # from options.train_options import  TrainOptions
+    # opt =  TrainOptions().parse()
+    # criterionGAN = GANLoss(
+    #     opt.gan_mode, tensor=jt.float32, opt=opt)
+    # segment = jt.randn(1, 1, 384, 512)
+    # style = jt.randn(1, 3, 384, 512)
+    # generator = PoE_Generator(opt)
+    # fake_image, kl_inputs = generator(segment, style)
+    # discriminator = PoE_Discriminator(opt)
+    # pred_fake = discriminator(fake_image, segment)
+    # lossGAN = criterionGAN(
+    #     pred_fake, True, for_discriminator=False)
+
+    # hist_loss
+    from options.train_options import TrainOptions
+    from data import find_dataset_using_name
+    opt = TrainOptions().parse()
+    print(opt)
+    dataset = find_dataset_using_name(opt.dataset_mode)
+    instance = dataset()
+    instance.initialize(opt)
+    dataloader = instance.set_attrs(
+        batch_size=opt.batchSize,
+        shuffle=False,
+        num_workers=int(opt.nThreads),
+        drop_last=opt.isTrain
+    )
+    for i, inputs in enumerate(dataloader):
+        label = inputs['label']
+        image = inputs['image']
+        style = inputs['style']
+        path = inputs['path']
+        trans_image = getHistMatched(image, style)
+        _loss = hist_loss(trans_image, style)
+        print('loss: ', _loss)
+        # print(label.shape)
+        # print(image.shape)
+        # print(style.shape)
+        if i>5:
+            break
