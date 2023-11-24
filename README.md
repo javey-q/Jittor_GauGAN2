@@ -1,6 +1,7 @@
 # 第三届计图人工智能挑战赛：风格及语义引导的风景图像生成赛题（赛题一）GauGAN2
 
 ## 简介
+**GauGAN2**
 
 本目录基于计图挑战赛中【王文琦、陈顾骏】小组所复现的GauGAN（[Semantic Image Synthesis with Spatially-Adaptive Normalization](https://arxiv.org/abs/1903.07291)）模型略作修改而得，单卡训练时间约为45epoch/24h。原仓库地址：https://github.com/wenqi-wang20/jittor-ThisNameIsGeneratedByJittor-Landscape
 
